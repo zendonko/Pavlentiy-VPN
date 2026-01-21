@@ -59,7 +59,7 @@ def get_pay_url(user_id):
 @dp.message(Command("start"))
 async def start(message: types.Message):
     await message.answer(
-        "👋 **Добро пожаловать в Pavlentiy VPN!**\n\n"
+        "👋 **Добро пожаловать в ПавЛюций VPN!**\n\n"
         "Мы используем протокол VLESS Reality для стабильного доступа.\n"
         "Выберите действие в меню ниже:",
         reply_markup=main_kb(message.from_user.id), 
@@ -131,7 +131,7 @@ async def check_expired():
             except: pass
 
 async def index_page(request):
-    html = f"<html><body style='font-family:sans-serif;text-align:center;padding:50px;'><h1>Pavlentiy VPN</h1><p>Для покупки: <a href='https://t.me/pavlentiyVPN_bot'>@pavlentiyVPN_bot</a></p><p>Поддержка: {SUPPORT_USER}</p></body></html>"
+    html = f"<html><body style='font-family:sans-serif;text-align:center;padding:50px;'><h1>ПавЛюций VPN</h1><p>Для покупки: <a href='https://t.me/pavlentiyVPN_bot'>@pavlentiyVPN_bot</a></p><p>Поддержка: {SUPPORT_USER}</p></body></html>"
     return web.Response(text=html, content_type='text/html')
 
 async def main():
@@ -151,6 +151,7 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
 
 
