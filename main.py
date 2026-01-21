@@ -3,6 +3,7 @@ import uuid
 import hashlib
 import os
 import logging
+import time
 from datetime import datetime
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
@@ -16,7 +17,8 @@ from xui_api import XUIManager
 # --- КОНФИГУРАЦИЯ ---
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "8551427639:AAGIpKZpos5Vo4LQ36G2cYJai6zLtt6g-L0")
 DB_URL = os.environ.get("DATABASE_URL")
-SUPPORT_USER = "@gleynz" # ВАЖНО: Укажи свой ник для модераторов
+SUPPORT_USER = "@gleynz" 
+DOWNLOAD_URL = "https://v2raytun.com/"
 
 XUI_URL = "https://vpn.zendonko.work.gd/W9XDms4n5Imt"
 XUI_USER = "kXDyzEGYOa"
@@ -37,131 +39,113 @@ dp = Dispatcher()
 db = Database(DB_URL)
 xui = XUIManager(XUI_URL, XUI_USER, XUI_PASS)
 
+# Клавиатура главного меню
+def main_kb(user_id):
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="💎 Купить VPN (30 дней) - 300₽", url=get_pay_url(user_id))],
+        [InlineKeyboardButton(text="👤 Мой профиль", callback_data="check_profile")],
+        [InlineKeyboardButton(text="📥 Скачать приложение", url=DOWNLOAD_URL)]
+    ])
+
 # --- ЛОГИКА ОПЛАТЫ ---
 def get_pay_url(user_id):
     amount = "300"
     currency = "RUB"
-    sign_str = f"{MERCHANT_ID}:{amount}:{SECRET_1}:{currency}:{user_id}"
-    sign = hashlib.md5(sign_str.encode()).hexdigest()
+    sign = hashlib.md5(f"{MERCHANT_ID}:{amount}:{SECRET_1}:{currency}:{user_id}".encode()).hexdigest()
     return f"https://pay.freekassa.ru/?m={MERCHANT_ID}&oa={amount}&currency={currency}&o={user_id}&s={sign}"
 
 # --- ХЕНДЛЕРЫ БОТА ---
 @dp.message(Command("start"))
 async def start(message: types.Message):
-    kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="💎 Купить VPN (30 дней) - 300₽", url=get_pay_url(message.from_user.id))],
-        [InlineKeyboardButton(text="👤 Мой профиль", callback_data="check_profile")]
-    ])
     await message.answer(
-        "👋 **Добро пожаловать в Pavlently VPN!**\n\n"
-        "Мы предоставляем быстрый доступ по протоколу VLESS Reality.\n"
-        "• Работает на всех устройствах\n"
-        "• Высокая скорость и низкий пинг\n"
-        "• Активация сразу после оплаты\n\n"
-        "Используйте кнопки ниже для покупки или проверки статуса.",
-        reply_markup=kb, parse_mode="Markdown"
+        "👋 **Добро пожаловать в Pavlentiy VPN!**\n\n"
+        "Мы используем протокол VLESS Reality для стабильного доступа.\n"
+        "Выберите действие в меню ниже:",
+        reply_markup=main_kb(message.from_user.id), 
+        parse_mode="Markdown"
     )
 
 @dp.message(Command("profile"))
 @dp.callback_query(F.data == "check_profile")
 async def show_profile(event: types.Message | types.CallbackQuery):
-    # Работаем и с командой, и с кнопкой
     user_id = event.from_user.id
     user_data = await db.get_user_status(user_id)
-    
-    text_target = event if isinstance(event, types.Message) else event.message
+    is_cb = isinstance(event, types.CallbackQuery)
+
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🔄 Обновить", callback_data="check_profile")],
+        [InlineKeyboardButton(text="💎 Продлить подписку", url=get_pay_url(user_id))],
+        [InlineKeyboardButton(text="📥 Скачать клиент", url=DOWNLOAD_URL)]
+    ])
 
     if not user_data:
-        await text_target.answer("У вас пока нет активной подписки. Нажмите /start для покупки.")
-        return
+        text = f"👤 **Профиль**\n\n🆔 ID: `{user_id}`\n📊 Статус: ⚪️ Не активен\n⏳ Осталось: **0 дней**"
+    else:
+        now = int(time.time())
+        diff = user_data['expiry_date'] - now
+        status = "✅ Активна" if diff > 0 else "❌ Истекла"
+        rem = f"{max(0, diff // 86400)} дн. {max(0, (diff % 86400) // 3600)} ч."
+        date_str = datetime.fromtimestamp(user_data['expiry_date']).strftime('%d.%m.%Y %H:%M')
+        text = f"👤 **Профиль**\n\n🆔 ID: `{user_id}`\n📊 Статус: {status}\n⏳ Осталось: **{rem}**\n📅 До: {date_str}"
 
-    expiry = datetime.fromtimestamp(user_data['expiry_date']).strftime('%d.%m.%Y %H:%M')
-    status = "✅ Активна" if user_data['is_active'] else "❌ Истекла"
-    
-    await text_target.answer(
-        f"👤 **Ваш профиль**\n\n"
-        f"🆔 ID: `{user_id}`\n"
-        f"📊 Статус: {status}\n"
-        f"📅 Срок действия: {expiry}\n\n"
-        f"Нужна помощь? Пишите {SUPPORT_USER}",
-        parse_mode="Markdown"
-    )
-
-# --- КРАСИВАЯ СТРАНИЦА ДЛЯ RENDER (WEB) ---
-async def index_page(request):
-    html = f"""
-    <!DOCTYPE html>
-    <html lang="ru">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Pavlently VPN - Сервис личных VPN</title>
-        <style>
-            body {{ font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f7f6; color: #333; text-align: center; padding: 50px 20px; }}
-            .card {{ background: white; max-width: 500px; margin: 0 auto; padding: 30px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }}
-            h1 {{ color: #0088cc; }}
-            p {{ line-height: 1.6; color: #666; }}
-            .btn {{ display: inline-block; background: #0088cc; color: white; padding: 12px 25px; text-decoration: none; border-radius: 8px; font-weight: bold; margin-top: 20px; transition: 0.3s; }}
-            .btn:hover {{ background: #006699; }}
-            .footer {{ margin-top: 30px; font-size: 13px; color: #999; }}
-        </style>
-    </head>
-    <body>
-        <div class="card">
-            <h1>Pavlently VPN</h1>
-            <p>Ваш персональный доступ к свободному интернету без ограничений. Используем современный протокол <b>VLESS Reality</b> для максимальной маскировки трафика.</p>
-            <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;">
-            <p>Тариф: <b>300 руб / 30 дней</b></p>
-            <a href="https://t.me/pavlentlyVPN_bot" class="btn">Подключиться через Telegram</a>
-            <div class="footer">
-                Поддержка: {SUPPORT_USER} | Работает на протоколах нового поколения
-            </div>
-        </div>
-    </body>
-    </html>
-    """
-    return web.Response(text=html, content_type='text/html')
-
-async def success_page(request):
-    return web.HTTPFound(location='https://t.me/pavlentlyVPN_bot')
+    if is_cb:
+        try: await event.message.edit_text(text, reply_markup=kb, parse_mode="Markdown")
+        except: await event.answer()
+    else:
+        await event.answer(text, reply_markup=kb, parse_mode="Markdown")
 
 # --- WEBHOOK ДЛЯ FREEKASSA ---
 async def handle_webhook(request):
+    data = await request.post()
     try:
-        data = await request.post()
-        # Проверка: m_id:amount:secret2:order_id
-        sign_check = hashlib.md5(f"{data.get('MERCHANT_ID')}:{data.get('AMOUNT')}:{SECRET_2}:{data.get('MERCHANT_ORDER_ID')}".encode()).hexdigest()
-        
-        if sign_check == data.get('SIGN'):
+        sign = hashlib.md5(f"{data.get('MERCHANT_ID')}:{data.get('AMOUNT')}:{SECRET_2}:{data.get('MERCHANT_ORDER_ID')}".encode()).hexdigest()
+        if sign == data.get('SIGN'):
             user_id = int(data.get('MERCHANT_ORDER_ID'))
             u_uuid = str(uuid.uuid4())
-            email = f"tg_{user_id}"
-            
-            if await xui.add_client(1, email, u_uuid):
-                await db.add_or_update_user(user_id, u_uuid, email)
-                link = (f"vless://{u_uuid}@{SERVER_DOMAIN}:443?security=reality&sni={SNI}"
-                        f"&fp=chrome&pbk={PBK}&sid={SID}&type=tcp&headerType=none"
-                        f"&flow=xtls-rprx-vision#Павлентий_VPN")
-                await bot.send_message(user_id, f"✅ **Оплата прошла!**\n\nТвой ключ доступа:\n`{link}`", parse_mode="Markdown")
+            if await xui.add_client(1, f"tg_{user_id}", u_uuid):
+                await db.add_or_update_user(user_id, u_uuid, f"tg_{user_id}")
+                link = f"vless://{u_uuid}@{SERVER_DOMAIN}:443?security=reality&sni={SNI}&fp=chrome&pbk={PBK}&sid={SID}&type=tcp&headerType=none&flow=xtls-rprx-vision#Павлентий_VPN"
+                
+                success_kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="📥 Скачать приложение", url=DOWNLOAD_URL)]])
+                
+                await bot.send_message(
+                    user_id, 
+                    f"✅ **Оплата прошла успешно!**\n\n"
+                    f"Ваш персональный ключ:\n`{link}`\n\n"
+                    f"Скопируйте ключ и вставьте его в приложение. Скачать клиент можно по кнопке ниже.", 
+                    reply_markup=success_kb,
+                    parse_mode="Markdown"
+                )
                 return web.Response(text='YES')
-    except Exception as e:
-        logging.error(f"Webhook error: {e}")
+    except Exception as e: logging.error(f"Webhook error: {e}")
     return web.Response(text='error', status=400)
+
+# --- ПРОВЕРКА ИСТЕКШИХ (check_expired) и main() ОСТАЮТСЯ БЕЗ ИЗМЕНЕНИЙ ---
+async def check_expired():
+    expired = await db.get_expired_users()
+    for row in expired:
+        if await xui.delete_client(1, row['email']):
+            await db.set_inactive(row['user_id'])
+            try: await bot.send_message(row['user_id'], "🔴 Подписка истекла. Доступ ограничен.")
+            except: pass
+
+async def index_page(request):
+    html = f"<html><body style='font-family:sans-serif;text-align:center;padding:50px;'><h1>Pavlentiy VPN</h1><p>Для покупки: <a href='https://t.me/pavlentiyVPN_bot'>@pavlentiyVPN_bot</a></p><p>Поддержка: {SUPPORT_USER}</p></body></html>"
+    return web.Response(text=html, content_type='text/html')
 
 async def main():
     await db.setup()
-    
+    scheduler = AsyncIOScheduler()
+    scheduler.add_job(check_expired, "interval", minutes=15)
+    scheduler.start()
     app = web.Application()
     app.router.add_get('/', index_page)
     app.router.add_post('/freekassa/webhook', handle_webhook)
-    app.router.add_get('/success', success_page)
-    app.router.add_get('/fail', success_page)
-    
+    app.router.add_get('/success', lambda r: web.HTTPFound('https://t.me/pavlentiyVPN_bot'))
+    app.router.add_get('/favicon.ico', lambda r: web.Response(status=204))
     runner = web.AppRunner(app)
     await runner.setup()
-    port = int(os.environ.get("PORT", 8080))
-    await web.TCPSite(runner, '0.0.0.0', port).start()
-    
+    await web.TCPSite(runner, '0.0.0.0', int(os.environ.get("PORT", 8080))).start()
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
