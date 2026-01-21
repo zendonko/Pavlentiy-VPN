@@ -44,7 +44,7 @@ def main_kb(user_id):
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="💎 Купить VPN (30 дней) - 300₽", url=get_pay_url(user_id))],
         [InlineKeyboardButton(text="👤 Мой профиль", callback_data="check_profile")],
-        [InlineKeyboardButton(text="📥 Скачать приложение", url=DOWNLOAD_URL)]
+        [InlineKeyboardButton(text="📥 Скачать приложение", url=DOWNLOAD_URL)],
         [InlineKeyboardButton(text="Инструкция к применению", url="https://telegra.ph/Instrukciya-k-podklyucheniyu-Pavlentiy-VPN-01-21")]
     ])
 
@@ -151,4 +151,5 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
