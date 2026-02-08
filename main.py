@@ -18,7 +18,7 @@ from xui_api import XUIManager
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "8551427639:AAGIpKZpos5Vo4LQ36G2cYJai6zLtt6g-L0")
 DB_URL = os.environ.get("DATABASE_URL")
 SUPPORT_USER = "@gleynz" 
-DOWNLOAD_URL = "https://v2raytun.com/"
+DOWNLOAD_URL = "https://disk.yandex.ru/d/H0tH71PepUsD7g"
 
 XUI_URL = "https://vpn.zendonko.work.gd/W9XDms4n5Imt"
 XUI_USER = "kXDyzEGYOa"
@@ -151,6 +151,7 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
 
 
